@@ -1,5 +1,6 @@
 var doc = document;
 var body = doc.body;
+var docElement = doc.documentElement;
 
 var $ = (function() {
     var cached = {};
@@ -63,6 +64,31 @@ var $ = (function() {
         eq : function(index) {
             index = +index;
             return index  < 0 ? $(this[this.length + index]) : $(this[index]);
+        },
+
+        //CSS
+        cssText : function(text) {
+            if(typeof text == 'undefined') {
+                return this[0].style.cssText;
+            } else {
+                each.call(this, function(v) {
+                    v.style.cssText = text;
+                })
+                return this;
+            }
+        },
+        //用于设置样式
+        css : function(name, value) {
+            if(typeof name == 'object') {
+                each.call(this, function(v) {
+                    each.call(name, function(styleValue, styleName) {
+                        v.style[styleName] = styleValue;
+                    })
+                })
+            } else {
+                this.style[name] = value;
+                return this;
+            }
         },
 
         //DOM
@@ -137,10 +163,9 @@ var $ = (function() {
     return $;
 }())
 
-
 var config = $.global('$CONFIG');
 var wbp = {
-    initialed : false, //初始化判断
+    isWindowInitialed : false, //窗口初始化
     stk :$.global('STK'), //weibo框架
     $uid : 0,
     $reloadTimerID : 0,
@@ -161,10 +186,24 @@ var wbp = {
         }
         groups.children(0).append($($.create('li')).html('<span><em><a id="wbpShowSettings" href="javascript:void(0)">眼不见心不烦</a></em></span>'));
         var btn = $('#wbpShowSettings').click(function() {
-            console.log('CLICK');
-            //that.showSettingsWindow();
+            that.showSettingsWindow();
         });
         return true;
+    },
+
+    loadSettingsWindow : function() {
+
+    },
+
+    showSettingsWindow : function() {
+        if(!this.isWindowInitialed) return this.loadSettingsWindow();
+        $('#wbpSettingsBack').cssText('background-image: initial; background-attachment: initial; background-origin: initial; background-clip: initial; background-color: black; opacity: 0.3; position: fixed; top: 0px; left: 0px; z-index: 10001; width: ' + window.innerWidth + 'px; height: ' + window.innerHeight + 'px;');
+        // Chrome与Firefox的scrollLeft, scrollTop储存于不同位置
+        $('#wbpSettings').css({
+            'left' : (Math.max(0, body.scrollLeft, docElement.scrollLeft) + event.clientX) + 'px',
+            'top' : (Math.max(0, body.scrollTop, docElement.scrollTop) + event.clientY + 10) + 'px',
+            'display' : ''
+        })
     },
 
     checkUpdate : function() {
