@@ -25,7 +25,7 @@ var $ = (function() {
             // 非Chrome浏览器，优先使用unsafeWindow获取全局变量
             // 由于varname中可能包括'.'，因此使用eval()获取变量值
             $.global = function (varname) {
-                return eval('unsafeWindow.' + varname);
+                return unsafeWindow[varname];
             };
         } else {
             // Chrome原生不支持unsafeWindow，脚本运行在沙箱中，因此不能访问全局变量。
@@ -58,9 +58,16 @@ var $ = (function() {
             push.apply(this, selector);
         },
 
+        length : 0,
+
+        eq : function(index) {
+            index = +index;
+            return index  < 0 ? $(this[this.length + index]) : $(this[index]);
+        },
+
         //DOM
         children : function(index) {
-            var children = this[0].chilren;
+            var children = this[0].children;
             var len = children.length;
             index = index > len ? (index < 0 ? (len + index) : index) : len - 1;
             return $(children[index]);
@@ -68,7 +75,7 @@ var $ = (function() {
 
         append : function(child) {
             child = child.length ? child[0] : child; //只操作第一个元素
-            each.call(el, function(v) {
+            each.call(this, function(v) {
                 v.appendChild(child);
             })
             return this;
@@ -81,6 +88,7 @@ var $ = (function() {
                 each.call(this, function(v) {
                     v.innerHTML = value;
                 })
+                return this;
             }
         },
 
@@ -107,12 +115,13 @@ var $ = (function() {
         //Event
         on : function(type, fn) {
             each.call(this, function(v) {
+                console.log(v);
                 v.addEventListener(type, fn, false);
             })
             return this;
         },
 
-        click : function(el, fn) {
+        click : function(fn) {
             this.on('click', fn);
             return this;
         },
@@ -127,3 +136,65 @@ var $ = (function() {
     $.prototype.init.prototype = $.prototype;
     return $;
 }())
+
+
+var config = $.global('$CONFIG');
+var wbp = {
+    initialed : false, //初始化判断
+    stk :$.global('STK'), //weibo框架
+    $uid : 0,
+    $reloadTimerID : 0,
+    scope : config['pageid'] == 'content_home' ? 1 : config['pageid'] == 'content_hisWeibo' ? 2 : 0,
+
+    init : function() {
+        if(!this.scope) return;
+        this.showSettingsBtn();
+    },
+
+    showSettingsBtn : function() {
+        var that = this;
+        var groups = $('#pl_content_homeFeed .nfTagB, #pl_content_hisFeed .nfTagB');
+        // Firefox的div#pl_content_homeFeed载入时是空的，此时无法置入页面，稍后由onDOMNodeInsertion()处理
+        if (groups.length == 0) {
+            setTimeout(arguments.callee, 10);
+            return;
+        }
+        groups.children(0).append($($.create('li')).html('<span><em><a id="wbpShowSettings" href="javascript:void(0)">眼不见心不烦</a></em></span>'));
+        var btn = $('#wbpShowSettings').click(function() {
+            console.log('CLICK');
+            //that.showSettingsWindow();
+        });
+        return true;
+    },
+
+    checkUpdate : function() {
+        //TODO 简化
+        $.ajax({
+            method: 'GET',
+            // 只载入metadata
+            url: 'http://userscripts.org/scripts/source/114087.meta.js',
+            onload: function (result) {
+                var text = result.responseText;
+
+                if (!text.match(/@version\s+(.*)/)) {return; }
+                var ver = RegExp.$1;
+                if (!text.match(/@revision\s+(\d+)/) || RegExp.$1 <= $revision) {
+                    wbp.stk.ui.alert('脚本已经是最新版。');
+                    return;
+                }
+                var features = '';
+                if (text.match(/@features\s+(.*)/)) {
+                    features = '- ' + RegExp.$1.split('；').join('\n- ') + '\n\n';
+                }
+                // 显示更新提示
+                wbp.stk.ui.confirm('“眼不见心不烦”新版本v' + ver + '可用。\n\n' + features + '如果您希望更新，请点击“确认”打开脚本页面。', {
+                    'OK' : function() {
+                        window.open('http://userscripts.org/scripts/show/114087');
+                    }
+                })
+            }
+        })
+    }
+};
+
+wbp.init();
