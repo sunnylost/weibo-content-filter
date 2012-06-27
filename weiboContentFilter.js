@@ -20,7 +20,7 @@ var $ = (function() {
     //static method
     $.create = function(tag) { //create element, with cache
         var el = cached[tag] || (cached[tag] = doc.createElement(tag));
-        return el.cloneNode(false);
+        return $(el.cloneNode(false));
     };
 
     $.each = function(obj, fn) {
@@ -53,17 +53,16 @@ var $ = (function() {
             // 但用户脚本与页面共享DOM，所以可以设法将脚本注入host页
             // 详见http://voodooattack.blogspot.com/2010/01/writing-google-chrome-extension-how-to.html
             $.global = function (varname) {
-                var elem = $.create('script');
                 // 生成脚本
-                elem.id = scriptPrefix + (guid++);
-                elem.type = 'text/javascript';
-                elem.innerHTML = '(function(){document.getElementById("' + elem.id + '").innerText=' + varname + '; }());';
-                // 将元素插入DOM（马上执行脚本）
-                doc.head.appendChild(elem);
+                var elem = $.create('script');
+                elem.prop({
+                    id : scriptPrefix + (guid++),
+                    type : 'text/javascript'
+                }).html('(function(){document.getElementById("' + elem.id + '").innerText=' + varname + '; }());');
+                $(doc.head).append(elem);
                 // 获取返回值
-                var ret = elem.innerText;
-                // 移除元素
-                doc.head.removeChild(elem);
+                var ret = elem.html();
+                elem.remove();
                 elem = null;
                 return ret;
             };
@@ -147,6 +146,13 @@ var $ = (function() {
             })
             return this;
         },
+        //移除节点
+        remove : function() {
+            $.each(this, function() {
+                this.parentNode.removeChild(this);
+            })
+            return this;
+        },
 
         html : function(value) {
             if(typeof value == 'undefined') {
@@ -226,7 +232,7 @@ var wbp = {
             setTimeout(wbp.showSettingsBtn.bind(this), 10);
             return;
         }
-        groups.children(0).append($($.create('li')).html('<span><em><a id="wbpShowSettings" href="javascript:void(0)">眼不见心不烦</a></em></span>'));
+        groups.children(0).append($.create('li').html('<span><em><a id="wbpShowSettings" href="javascript:void(0)">眼不见心不烦</a></em></span>'));
         var btn = $('#wbpShowSettings').click(function(e) {
             console.log(that);
             that.showSettingsWindow(e);
@@ -242,8 +248,8 @@ var wbp = {
 
         // 加入选项设置
         GM_addStyle('#wbpSettings p { line-height: 150%; } #wbpTabHeaders a { display: block; padding: 6px 0; text-align: center; text-decoration: none; } #wbpTabHeaders a:hover { background-color: #C6E8F4; } #wbpTabHeaders a.current { background-color: #79C5E9; color: white; cursor: default; } #wbpSettings .wbpInput { border: 1px solid #D2D5D8; padding: 0 2px; } #wbpSettings .wbpInput input { width: 100%; height: 22px; border: 0; padding: 0; margin: 0; display: block; } #wbpSettings .detail > div { margin-top: 15px; } #wbpTabModules input { vertical-align: middle; margin-right: 5px; } #wbpSettings .wbpKeywordBlock { margin-top: 10px; border: 1px solid #D2D5D8; padding: 8px 8px 0; } #wbpSettings .wbpKeywordBlock em { font-weight: bold; margin-right: 15px; } #wbpSettings .wbpKeywordList { margin-top: 8px; overflow: hidden; } #wbpSettings .wbpKeywordList a { margin: 0 5px 8px 0; padding: 0 4px; border: 1px solid; float: left; height: 18px; line-height: 18px; white-space: nowrap; } #wbpSettings .wbpKeywordList a:hover { text-decoration: none; } #wbpWhiteKeywordList a { border-color: #008000; color: #008000; } #wbpWhiteKeywordList a.regex { background-color: #80FF80; } #wbpWhiteKeywordList a:hover { border-color: #008000; background-color: #D0FFD0; } #wbpBlackKeywordList a, #wbpURLKeywordList a { border-color: #D00000; color: #D00000; } #wbpBlackKeywordList a.regex, #wbpURLKeywordList a.regex { background-color: #FFB0B0; } #wbpBlackKeywordList a:hover, #wbpURLKeywordList a:hover { border-color: #FF0000; background-color: #FFD0D0; } #wbpGrayKeywordList a { border-color: #808000; color: #808000; } #wbpGrayKeywordList a.regex { background-color: #FFFF00; } #wbpGrayKeywordList a:hover { border-color: #808000; background-color: #FFFFB0; }');
-        var keywordBack = $($.create('div')).prop('id', 'wbpSettingsBack').hide();
-        var keywordBlock = $($.create('div')).prop({
+        var keywordBack = $.create('div').prop('id', 'wbpSettingsBack').hide();
+        var keywordBlock = $.create('div').prop({
                                 'id' : 'wbpSettings',
                                 'className' : 'W_layer'
                             })
