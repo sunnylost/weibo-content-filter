@@ -1,3 +1,17 @@
+// ==UserScript==
+// @name            眼不见心不烦（新浪微博）
+// @namespace       http://weibo.com/salviati
+// @license         MIT License
+// @description     在新浪微博（weibo.com）中隐藏包含指定关键词的微博。
+// @features        增加对个人/机构认证（黄/蓝V）及微博达人标识的屏蔽
+// @version         0.85
+// @revision        45
+// @author          @富平侯(/salviati)
+// @thanksto        @牛肉火箭(/sunnylost)；@JoyerHuang_悦(/collger)
+// @include         http://weibo.com/*
+// @include         http://www.weibo.com/*
+// ==/UserScript==
+
 //Firefox安装GreaseMonkey扩展
 //Chrome原生支持，但也可以选择安装Tampermonkey
 //IE暂时不予考虑
@@ -19,6 +33,7 @@ var $ = (function() {
     var slice = ArrayProto.slice;
     var push = ArrayProto.push;
     var each = ArrayProto.forEach;
+    var stk; //weibo框架
 
     var $ = function(selector, context) {
         return new $.prototype.init(selector, context);
@@ -236,11 +251,11 @@ var $ = (function() {
                 var data;
                 while(target && target.nodeType == 1) {
                     e.actionType = target.getAttribute('action-type');
-                    e.actionData = {};
+                    e.data = {};
                     data = target.getAttribute('action-data');
                     data && $.each(data.split('&'), function(i, v) {
                         var map = v.split('=');
-                        e.actionData[map[0]] = map[1];
+                        e.data[map[0]] = map[1];
                     });
                     e.actionType && fn.call(target, e);
                     target = target.parentNode;
@@ -280,22 +295,125 @@ var $ = (function() {
             };
         }
     })()
+    //UI
+    ;(function() {
+        stk = $.global('STK');
+        if(!stk || !stk.ui) {
+            setTimeout(arguments.callee, 50);
+        } else {
+            $.alert = stk.ui.alert;
+            $.confirm = stk.ui.confirm;
+            stk = null;
+        }
+    })()
     return $;
 }())
 
-var root = $(body);
+var $blocks = { // 模块屏蔽设置
+        'Topic' : '#pl_content_promotetopic, #trustPagelete_zt_hottopic',
+        'InterestUser' : '#pl_content_homeInterest, #trustPagelete_recom_interest',
+        'InterestApp' : '#pl_content_allInOne, #trustPagelete_recom_allinone',
+        'Notice' : '#pl_common_noticeboard, #pl_rightmod_noticeboard',
+        'HelpFeedback' : '#pl_common_help, #pl_common_feedback, #pl_rightmod_help, #pl_rightmod_feedback, #pl_rightmod_tipstitle',
+        'Ads' : '#plc_main .W_main_r div[id^="ads_"], div[ad-data], #ads_bottom_1',
+        'PullyList' : '#pl_content_pullylist, #pl_content_biztips',
+        'RecommendedTopic' : '#pl_content_publisherTop div[node-type="recommendTopic"]',
+        'Mood' : '#pl_content_mood',
+        'Medal' : '#pl_content_medal, #pl_rightmod_medal, .declist',
+        'Game' : '#pl_leftNav_game',
+        'App' : '#pl_leftNav_app',
+        'Tasks' : '#pl_content_tasks',
+        'Promotion' : '#pl_rightmod_promotion, #trustPagelet_ugrowth_invite',
+        'Level' : '#pl_content_personInfo p.level, #pl_leftNav_common dd.nameBox p, #pl_content_hisPersonalInfo span.W_level_ico',
+        'Member' : '#trustPagelet_recom_member',
+        'MemberIcon' : '.ico_member',
+        'VerifyIcon' : '.approve, .approve_co',
+        'DarenIcon' : '.ico_club'
+};
+var $options; //配置对象
 
+var root = $(body);
 var config = $.global('$CONFIG');
+var $uid = config['uid'];
+
+var Feed = function(node) {
+    this.el = node;
+    this.contentEl = $('[node-type=feed_list_content]', node)[0];
+    this.nickname = $('a[nickname]', this.contentEl)[0].textContent; //发布该条微博的昵称
+    this.content = $('em', this.contentEl)[0].textContent; //本条微博内容
+    this.app = $('[rel=nofollow]', this.contentEl)[0].textContent;  //发布微博采用的应用
+
+    this.forwardEl = $('dl', node)[0];
+    this.forwardContentEl = $('[node-type=feed_list_forwardContent]'. this.forwardEl)[0];
+    this.forwardNickname = $('a[nickname]', this.forwardContentEl)[0].textContent; //转发微博的昵称
+    this.forwardContent = $('em', this.forwardContentEl)[0].textContent; //转发微博正文
+    this.forwardApp = $('[rel=nofollow]', this.forwardContentEl)[0].textContent;  //转发微博采用的应用
+};
+
+//核心类，过滤、屏蔽、隐藏模块
+var Filter = (function(){
+    var settings = GM_getValue($uid) || {
+        keywordPaused : false,
+        whiteKeywords : '',
+        blackKeywords : '',
+        grayKeywords : '',
+        URLKeywords : '',
+        tipBackColor : '#FFD0D0',
+        tipTextColor : '#FF8080',
+        hideBlock : {}
+    };
+
+    var getSettings = function() {
+        return settings;
+    };
+
+    var updateSettings = function(str) {
+        var options = str || GM_getValue($uid.toString(), '');
+        if (options) {
+            try {
+                settings = JSON.parse(options.replace(/\n/g, ''));
+                if (typeof settings !== 'object') {throw 0; }
+            } catch (e) {
+                if (str) {
+                    $.alert('设置导入失败！<br/>设置信息格式有问题。');
+                    return false;
+                }
+                $.alert('“眼不见心不烦”设置读取失败！<br/>设置信息格式有问题。');
+            }
+        }
+    };
+
+    //过滤设置，根据该设置来决定哪些内容被过滤
+    var applySettings = function() {
+    };
+
+    var blockModules = function() {
+        $.each(settings.hideBlock, function(name, value) {
+            value && $($blocks[name]).hide();
+        })
+    };
+
+    var filter = function() {
+
+    };
+
+    return {
+        getSettings : getSettings,  //获得设置对象
+        updateSettings : updateSettings,  //初始化设置
+        applySettings : applySettings, //应用设置
+        blockModules : blockModules,  //屏蔽模块
+        filter : filter
+    }
+}());
+
 var wbp = {
     isWindowInitialed : false, //窗口初始化
-    stk :$.global('STK'), //weibo框架
-    $uid : 0,
-    $reloadTimerID : 0,
     scope : config['pageid'] == 'content_home' ? 1 : config['pageid'] == 'content_hisWeibo' ? 2 : 0,
 
     init : function() {
-        if(!this.scope) return;
+        if(!this.scope || !$uid) return;
         this.showSettingsBtn();
+        Filter.blockModules();  //屏蔽模块
     },
 
     showSettingsBtn : function() {
@@ -316,8 +434,6 @@ var wbp = {
     loadSettingsWindow : function() {
         if (this.isWindowInitialed) {return true; }
         this.isWindowInitialed = true;
-        this.$uid = config['uid'];
-        if (!this.$uid) {return false; }
 
         // 加入选项设置
         GM_addStyle('#wbpSettings p { line-height: 150%; } #wbpTabHeaders a { display: block; padding: 6px 0; text-align: center; text-decoration: none; } #wbpTabHeaders a:hover { background-color: #C6E8F4; } #wbpTabHeaders a.current { background-color: #79C5E9; color: white; cursor: default; } #wbpSettings .wbpInput { border: 1px solid #D2D5D8; padding: 0 2px; } #wbpSettings .wbpInput input { width: 100%; height: 22px; border: 0; padding: 0; margin: 0; display: block; } #wbpSettings .detail > div { margin-top: 15px; } #wbpTabModules input { vertical-align: middle; margin-right: 5px; } #wbpSettings .wbpKeywordBlock { margin-top: 10px; border: 1px solid #D2D5D8; padding: 8px 8px 0; } #wbpSettings .wbpKeywordBlock em { font-weight: bold; margin-right: 15px; } #wbpSettings .wbpKeywordList { margin-top: 8px; overflow: hidden; } #wbpSettings .wbpKeywordList a { margin: 0 5px 8px 0; padding: 0 4px; border: 1px solid; float: left; height: 18px; line-height: 18px; white-space: nowrap; } #wbpSettings .wbpKeywordList a:hover { text-decoration: none; } #wbpWhiteKeywordList a { border-color: #008000; color: #008000; } #wbpWhiteKeywordList a.regex { background-color: #80FF80; } #wbpWhiteKeywordList a:hover { border-color: #008000; background-color: #D0FFD0; } #wbpBlackKeywordList a, #wbpURLKeywordList a { border-color: #D00000; color: #D00000; } #wbpBlackKeywordList a.regex, #wbpURLKeywordList a.regex { background-color: #FFB0B0; } #wbpBlackKeywordList a:hover, #wbpURLKeywordList a:hover { border-color: #FF0000; background-color: #FFD0D0; } #wbpGrayKeywordList a { border-color: #808000; color: #808000; } #wbpGrayKeywordList a.regex { background-color: #FFFF00; } #wbpGrayKeywordList a:hover { border-color: #808000; background-color: #FFFFB0; }');
@@ -326,7 +442,7 @@ var wbp = {
                                 'id' : 'wbpSettings',
                                 'className' : 'W_layer'
                             })
-                            .html('<div class="bg"><table width="100%" border="0" cellspacing="0" cellpadding="0"><tbody><tr><td><div class="content"><div class="title" node-type="title"><span id="wbpSettingsTitle" node-type="title_content"></span></div><a href="javascript:void(0);" class="W_close" title="关闭" action-type="closeWindow"></a><div node-type="inner" class="detail layer_forward" style="width: auto; padding-bottom: 20px;"><div class="clearfix"><div style="float: left;">新浪微博<span style="color: red;">非官方</span>功能增强脚本。</div><div style="float: right; display: inline; position: relative;"><a action-type="checkUpdate" href="javascript:void(0);" title="检查脚本是否有新版本">检查更新</a><em class="W_vline" style="margin: 0 8px">|</em><a href="http://userscripts.org/scripts/show/114087" title="新版本在此页面发布" target="_blank">插件主页</a><em class="W_vline" style="margin: 0 8px">|</em><a href="http://code.google.com/p/weibo-content-filter/wiki/FAQ" title="遇到问题请先阅读FAQ" target="_blank">常见问题</a><em class="W_vline" style="margin: 0 8px">|</em><a href="/salviati" title="欢迎私信、评论或@作者提出脚本建议" target="_blank">联系作者</a></div></div><div class="clearfix"><div id="wbpTabHeaders" style="float: left; width: 100px;"><a action-type="changeTab" action-data="index=0&name=wbpTabKeywords" href="javascript:void(0);" class="current">关键词</a><a action-type="changeTab" action-data="index=1&name=wbpTabLinks" href="javascript:void(0);">链接地址</a><a action-type="changeTab" action-data="index=2&name=wbpTabUserSource" href="javascript:void(0);">用户/来源</a><a action-type="changeTab" action-data="index=3&name=wbpTabModules" href="javascript:void(0);">版面模块</a><a action-type="changeTab" action-data="index=4&name=wbpTabSettings" href="javascript:void(0);">设置导入/导出</a></div><div id="wbpTabContents" style="float: right; width: 440px;"><div id="wbpTabKeywords"><input type="checkbox" id="wbpKeywordPaused" style="vertical-align: middle; margin-right: 5px;"><label for="wbpKeywordPaused"><span style="color: red;">暂停屏蔽</span>：选中时暂时解除对关键词的屏蔽</label><div class="wbpKeywordBlock"><em>白名单</em>包含下列关键词的微博不会被屏蔽<table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-top: 8px;"><tbody><tr><td><div class="wbpInput"><input type="text" id="wbpWhiteKeywords" class="input" placeholder="多个关键词用空格隔开；不区分大小写；支持正则表达式"></div></td><td style="width: 120px; text-align: right;"><a href="javascript:void(0);" class="W_btn_a" id="wbpAddWhiteKeyword"><span>添加</span></a><a href="javascript:void(0);" class="W_btn_a" id="wbpClearWhiteKeyword" style="margin-left: 5px;"><span>清空</span></a></td></tr></tbody></table><div id="wbpWhiteKeywordList" class="wbpKeywordList clearfix"></div></div><div class="wbpKeywordBlock"><em>黑名单</em>包含下列关键词的微博将被屏蔽<table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-top: 8px;"><tbody><tr><td><div class="wbpInput"><input type="text" id="wbpBlackKeywords" class="input" placeholder="多个关键词用空格隔开；不区分大小写；支持正则表达式"></div></td><td style="width: 120px; text-align: right;"><a href="javascript:void(0);" class="W_btn_a" id="wbpAddBlackKeyword"><span>添加</span></a><a href="javascript:void(0);" class="W_btn_a" id="wbpClearBlackKeyword" style="margin-left: 5px;"><span>清空</span></a></td></tr></tbody></table><div id="wbpBlackKeywordList" class="wbpKeywordList clearfix"></div></div><div class="wbpKeywordBlock"><em>灰名单</em>包含下列关键词的微博将被屏蔽<span style="color: red;">并提示</span><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-top: 8px;"><tbody><tr><td><div class="wbpInput"><input type="text" id="wbpGrayKeywords" class="input" placeholder="多个关键词用空格隔开；不区分大小写；支持正则表达式"></div></td><td style="width: 120px; text-align: right;"><a href="javascript:void(0);" class="W_btn_a" id="wbpAddGrayKeyword"><span>添加</span></a><a href="javascript:void(0);" class="W_btn_a" id="wbpClearGrayKeyword" style="margin-left: 5px;"><span>清空</span></a></td></tr></tbody></table><div id="wbpGrayKeywordList" class="wbpKeywordList clearfix"></div><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px;"><tbody><tr><td style="width: 110px;">屏蔽提示背景颜色：</td><td><div class="wbpInput"><input type="text" id="wbpTipBackColor" class="input"></div></td><td style="width: 15px;"></td><td style="width: 110px;">屏蔽提示文字颜色：</td><td><div class="wbpInput"><input type="text" id="wbpTipTextColor" class="input"></div></td></tr></tbody></table><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-bottom: 8px;"><tbody><tr><td style="width: 40px;">示例：</td><td><div id="wbpTipSample" style="border-style: solid; border-width: 1px; height: 23px; line-height: 23px; text-align: center;">本条来自<a href="javascript:void(0);">@某人</a>的微博因包含关键词“<a href="javascript:void(0);">XXXX</a>”而被隐藏，点击显示</div></td></tr></tbody></table></div></div><div id="wbpTabLinks" style="display: none;"><p>如果一条微博中包含链接且目标地址中包含下列关键词，微博将被屏蔽（无提示）。如将taobao.com设为关键词可屏蔽所有包含淘宝链接的微博。</p><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-top: 8px;"><tbody><tr><td><div class="wbpInput"><input type="text" id="wbpURLKeywords" class="input" placeholder="多个关键词用空格隔开；不区分大小写；支持正则表达式"></div></td><td style="width: 120px; text-align: right;"><a href="javascript:void(0);" class="W_btn_a" id="wbpAddURLKeyword"><span>添加</span></a><a href="javascript:void(0);" class="W_btn_a" id="wbpClearURLKeyword" style="margin-left: 5px;"><span>清空</span></a></td></tr></tbody></table><div id="wbpURLKeywordList" class="wbpKeywordList"></div><div class="clear"></div></div><div id="wbpTabUserSource" style="display: none;"><p>新浪微博官方已提供针对指定<a href="http://account.weibo.com/set/feed" target="_blank">用户</a>或<a href="http://account.weibo.com/set/feedsource" target="_blank">来源</a>（如“皮皮时光机”）的屏蔽功能，而且在所有浏览器和移动客户端上都有效。但是，如果不开通<a href="http://vip.weibo.com/" target="_blank">微博会员</a>，最多只能屏蔽5个用户，不能屏蔽来源。</p><p style="margin-top: 10px;"><span style="color: red;">您可以使用“眼不见心不烦”的关键词屏蔽功能来免费、无限制地屏蔽用户或来源：</span>要屏蔽某位用户，将其用户名（不要带前面的@）设为屏蔽关键词即可；要屏蔽某种来源，将其名字前加上“来自”并设为屏蔽关键词即可（如“来自皮皮时光机”）。</p></div><div id="wbpTabModules" style="display: none;"><p>请选择要屏蔽的内容。</p><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 24px; margin-top: 15px;"><tbody><tr><td><input type="checkbox" id="wbpBlockAds"><label for="wbpBlockAds">右边栏/页底广告</label></td><td><input type="checkbox" id="wbpBlockPullyList"><label for="wbpBlockPullyList">微博看点（顶栏广告）</label></td></tr><tr><td><input type="checkbox" id="wbpBlockRecommendedTopic"><label for="wbpBlockRecommendedTopic">推荐微话题</label></td><td><input type="checkbox" id="wbpBlockTasks"><label for="wbpBlockTasks">微博任务（微博宝典）</label></td></tr><tr><td><input type="checkbox" id="wbpBlockMedal"><label for="wbpBlockMedal">勋章</label></td><td><input type="checkbox" id="wbpBlockMood"><label for="wbpBlockMood">心情</label></td></tr><tr><td><input type="checkbox" id="wbpBlockLevel"><label for="wbpBlockLevel">微博等级</label></td><td><input type="checkbox" id="wbpBlockPromotion"><label for="wbpBlockPromotion">微博推广</label></td></tr><tr><td><input type="checkbox" id="wbpBlockMember"><label for="wbpBlockMember">会员专区</label></td><td><input type="checkbox" id="wbpBlockMemberIcon"><label for="wbpBlockMemberIcon">会员专属标识</label></td></tr><tr><td><input type="checkbox" id="wbpBlockVerifyIcon"><label for="wbpBlockVerifyIcon">个人/机构认证（黄/蓝V）</label></td><td><input type="checkbox" id="wbpBlockDarenIcon"><label for="wbpBlockDarenIcon">达人专属标识</label></td></tr><tr><td><input type="checkbox" id="wbpBlockInterestUser"><label for="wbpBlockInterestUser">可能感兴趣的人</label></td><td><input type="checkbox" id="wbpBlockTopic"><label for="wbpBlockTopic">热门话题/关注的话题</label></td></tr><tr><td><input type="checkbox" id="wbpBlockInterestApp"><label for="wbpBlockInterestApp">可能感兴趣的微群/应用/活动</label></td><td><input type="checkbox" id="wbpBlockNotice"><label for="wbpBlockNotice">公告栏</label></td></tr><tr><td><input type="checkbox" id="wbpBlockHelpFeedback"><label for="wbpBlockHelpFeedback">玩转微博/意见反馈</label></td></tr><tr><td><input type="checkbox" id="wbpBlockGame"><label for="wbpBlockGame">游戏（体验版左边栏）</label></td><td><input type="checkbox" id="wbpBlockApp"><label for="wbpBlockApp">应用（体验版左边栏）</label></td></tr></tbody></table><p style="margin-top: 20px;"><a href="javascript:void(0);" class="W_btn_a" action-type="blockAll"><span>全选</span></a><a href="javascript:void(0);" class="W_btn_a" style="margin-left: 10px;" action-type="blockInvert"><span>反选</span></a></p></div><div id="wbpTabSettings" style="display: none;"><div class="clearfix"><div style="float: left; width: 385px;"><p>当前账号的设置信息在下列文本框中，您可以将其复制到其它位置保存。需要导入设置时，请将设置信息粘贴到文本框中，然后点击“导入”。</p></div><a href="javascript:void(0);" class="W_btn_a" id="wbpImportBtn" style="float: right; margin-top: 6px;"><span>导入</span></a></div><textarea id="wbpSettingsString" rows="10" style="width: 440px; margin-top: 10px; border: 1px solid #D2D5D8;"></textarea></div></div></div><p class="btn"><a href="javascript:void(0);" class="W_btn_b" id="wbpOKBtn"><span>确定</span></a><a href="javascript:void(0);" class="W_btn_a" action-type="closeWindow"><span>取消</span></a></p></div></div></td></tr></tbody></table></div>')
+                            .html('<div class="bg"><table width="100%" border="0" cellspacing="0" cellpadding="0"><tbody><tr><td><div class="content"><div class="title" node-type="title"><span id="wbpSettingsTitle" node-type="title_content"></span></div><a href="javascript:void(0);" class="W_close" title="关闭" action-type="closeWindow"></a><div node-type="inner" class="detail layer_forward" style="width: auto; padding-bottom: 20px;"><div class="clearfix"><div style="float: left;">新浪微博<span style="color: red;">非官方</span>功能增强脚本。</div><div style="float: right; display: inline; position: relative;"><a action-type="checkUpdate" href="javascript:void(0);" title="检查脚本是否有新版本">检查更新</a><em class="W_vline" style="margin: 0 8px">|</em><a href="http://userscripts.org/scripts/show/114087" title="新版本在此页面发布" target="_blank">插件主页</a><em class="W_vline" style="margin: 0 8px">|</em><a href="http://code.google.com/p/weibo-content-filter/wiki/FAQ" title="遇到问题请先阅读FAQ" target="_blank">常见问题</a><em class="W_vline" style="margin: 0 8px">|</em><a href="/salviati" title="欢迎私信、评论或@作者提出脚本建议" target="_blank">联系作者</a></div></div><div class="clearfix"><div id="wbpTabHeaders" style="float: left; width: 100px;"><a action-type="changeTab" action-data="index=0&name=wbpTabKeywords" href="javascript:void(0);" class="current">关键词</a><a action-type="changeTab" action-data="index=1&name=wbpTabLinks" href="javascript:void(0);">链接地址</a><a action-type="changeTab" action-data="index=2&name=wbpTabUserSource" href="javascript:void(0);">用户/来源</a><a action-type="changeTab" action-data="index=3&name=wbpTabModules" href="javascript:void(0);">版面模块</a><a action-type="changeTab" action-data="index=4&name=wbpTabSettings" href="javascript:void(0);">设置导入/导出</a></div><div id="wbpTabContents" style="float: right; width: 440px;"><div id="wbpTabKeywords"><input type="checkbox" id="wbpKeywordPaused" style="vertical-align: middle; margin-right: 5px;"><label for="wbpKeywordPaused"><span style="color: red;">暂停屏蔽</span>：选中时暂时解除对关键词的屏蔽</label><div class="wbpKeywordBlock"><em>白名单</em>包含下列关键词的微博不会被屏蔽<table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-top: 8px;"><tbody><tr><td><div class="wbpInput"><input type="text" id="wbpWhiteKeywords" class="input" placeholder="多个关键词用空格隔开；不区分大小写；支持正则表达式"></div></td><td style="width: 120px; text-align: right;"><a href="javascript:void(0);" class="W_btn_a" action-type="addKeyWord" action-data="id=wbpWhiteKeywords"><span>添加</span></a><a href="javascript:void(0);" class="W_btn_a" id="wbpClearWhiteKeyword" style="margin-left: 5px;"><span>清空</span></a></td></tr></tbody></table><div id="wbpWhiteKeywordList" class="wbpKeywordList clearfix"></div></div><div class="wbpKeywordBlock"><em>黑名单</em>包含下列关键词的微博将被屏蔽<table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-top: 8px;"><tbody><tr><td><div class="wbpInput"><input type="text" id="wbpBlackKeywords" class="input" placeholder="多个关键词用空格隔开；不区分大小写；支持正则表达式"></div></td><td style="width: 120px; text-align: right;"><a href="javascript:void(0);" class="W_btn_a" id="wbpAddBlackKeyword"><span>添加</span></a><a href="javascript:void(0);" class="W_btn_a" id="wbpClearBlackKeyword" style="margin-left: 5px;"><span>清空</span></a></td></tr></tbody></table><div id="wbpBlackKeywordList" class="wbpKeywordList clearfix"></div></div><div class="wbpKeywordBlock"><em>灰名单</em>包含下列关键词的微博将被屏蔽<span style="color: red;">并提示</span><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-top: 8px;"><tbody><tr><td><div class="wbpInput"><input type="text" id="wbpGrayKeywords" class="input" placeholder="多个关键词用空格隔开；不区分大小写；支持正则表达式"></div></td><td style="width: 120px; text-align: right;"><a href="javascript:void(0);" class="W_btn_a" id="wbpAddGrayKeyword"><span>添加</span></a><a href="javascript:void(0);" class="W_btn_a" id="wbpClearGrayKeyword" style="margin-left: 5px;"><span>清空</span></a></td></tr></tbody></table><div id="wbpGrayKeywordList" class="wbpKeywordList clearfix"></div><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px;"><tbody><tr><td style="width: 110px;">屏蔽提示背景颜色：</td><td><div class="wbpInput"><input type="text" id="wbpTipBackColor" class="input"></div></td><td style="width: 15px;"></td><td style="width: 110px;">屏蔽提示文字颜色：</td><td><div class="wbpInput"><input type="text" id="wbpTipTextColor" class="input"></div></td></tr></tbody></table><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-bottom: 8px;"><tbody><tr><td style="width: 40px;">示例：</td><td><div id="wbpTipSample" style="border-style: solid; border-width: 1px; height: 23px; line-height: 23px; text-align: center;">本条来自<a href="javascript:void(0);">@某人</a>的微博因包含关键词“<a href="javascript:void(0);">XXXX</a>”而被隐藏，点击显示</div></td></tr></tbody></table></div></div><div id="wbpTabLinks" style="display: none;"><p>如果一条微博中包含链接且目标地址中包含下列关键词，微博将被屏蔽（无提示）。如将taobao.com设为关键词可屏蔽所有包含淘宝链接的微博。</p><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 30px; margin-top: 8px;"><tbody><tr><td><div class="wbpInput"><input type="text" id="wbpURLKeywords" class="input" placeholder="多个关键词用空格隔开；不区分大小写；支持正则表达式"></div></td><td style="width: 120px; text-align: right;"><a href="javascript:void(0);" class="W_btn_a" id="wbpAddURLKeyword"><span>添加</span></a><a href="javascript:void(0);" class="W_btn_a" id="wbpClearURLKeyword" style="margin-left: 5px;"><span>清空</span></a></td></tr></tbody></table><div id="wbpURLKeywordList" class="wbpKeywordList"></div><div class="clear"></div></div><div id="wbpTabUserSource" style="display: none;"><p>新浪微博官方已提供针对指定<a href="http://account.weibo.com/set/feed" target="_blank">用户</a>或<a href="http://account.weibo.com/set/feedsource" target="_blank">来源</a>（如“皮皮时光机”）的屏蔽功能，而且在所有浏览器和移动客户端上都有效。但是，如果不开通<a href="http://vip.weibo.com/" target="_blank">微博会员</a>，最多只能屏蔽5个用户，不能屏蔽来源。</p><p style="margin-top: 10px;"><span style="color: red;">您可以使用“眼不见心不烦”的关键词屏蔽功能来免费、无限制地屏蔽用户或来源：</span>要屏蔽某位用户，将其用户名（不要带前面的@）设为屏蔽关键词即可；要屏蔽某种来源，将其名字前加上“来自”并设为屏蔽关键词即可（如“来自皮皮时光机”）。</p></div><div id="wbpTabModules" style="display: none;"><p>请选择要屏蔽的内容。</p><table width="100%" border="0" cellspacing="0" cellpadding="0" style="line-height: 24px; margin-top: 15px;"><tbody><tr><td><input type="checkbox" id="wbpBlockAds"><label for="wbpBlockAds">右边栏/页底广告</label></td><td><input type="checkbox" id="wbpBlockPullyList"><label for="wbpBlockPullyList">微博看点（顶栏广告）</label></td></tr><tr><td><input type="checkbox" id="wbpBlockRecommendedTopic"><label for="wbpBlockRecommendedTopic">推荐微话题</label></td><td><input type="checkbox" id="wbpBlockTasks"><label for="wbpBlockTasks">微博任务（微博宝典）</label></td></tr><tr><td><input type="checkbox" id="wbpBlockMedal"><label for="wbpBlockMedal">勋章</label></td><td><input type="checkbox" id="wbpBlockMood"><label for="wbpBlockMood">心情</label></td></tr><tr><td><input type="checkbox" id="wbpBlockLevel"><label for="wbpBlockLevel">微博等级</label></td><td><input type="checkbox" id="wbpBlockPromotion"><label for="wbpBlockPromotion">微博推广</label></td></tr><tr><td><input type="checkbox" id="wbpBlockMember"><label for="wbpBlockMember">会员专区</label></td><td><input type="checkbox" id="wbpBlockMemberIcon"><label for="wbpBlockMemberIcon">会员专属标识</label></td></tr><tr><td><input type="checkbox" id="wbpBlockVerifyIcon"><label for="wbpBlockVerifyIcon">个人/机构认证（黄/蓝V）</label></td><td><input type="checkbox" id="wbpBlockDarenIcon"><label for="wbpBlockDarenIcon">达人专属标识</label></td></tr><tr><td><input type="checkbox" id="wbpBlockInterestUser"><label for="wbpBlockInterestUser">可能感兴趣的人</label></td><td><input type="checkbox" id="wbpBlockTopic"><label for="wbpBlockTopic">热门话题/关注的话题</label></td></tr><tr><td><input type="checkbox" id="wbpBlockInterestApp"><label for="wbpBlockInterestApp">可能感兴趣的微群/应用/活动</label></td><td><input type="checkbox" id="wbpBlockNotice"><label for="wbpBlockNotice">公告栏</label></td></tr><tr><td><input type="checkbox" id="wbpBlockHelpFeedback"><label for="wbpBlockHelpFeedback">玩转微博/意见反馈</label></td></tr><tr><td><input type="checkbox" id="wbpBlockGame"><label for="wbpBlockGame">游戏（体验版左边栏）</label></td><td><input type="checkbox" id="wbpBlockApp"><label for="wbpBlockApp">应用（体验版左边栏）</label></td></tr></tbody></table><p style="margin-top: 20px;"><a href="javascript:void(0);" class="W_btn_a" action-type="blockAll"><span>全选</span></a><a href="javascript:void(0);" class="W_btn_a" style="margin-left: 10px;" action-type="blockInvert"><span>反选</span></a></p></div><div id="wbpTabSettings" style="display: none;"><div class="clearfix"><div style="float: left; width: 385px;"><p>当前账号的设置信息在下列文本框中，您可以将其复制到其它位置保存。需要导入设置时，请将设置信息粘贴到文本框中，然后点击“导入”。</p></div><a href="javascript:void(0);" class="W_btn_a" id="wbpImportBtn" style="float: right; margin-top: 6px;"><span>导入</span></a></div><textarea id="wbpSettingsString" rows="10" style="width: 440px; margin-top: 10px; border: 1px solid #D2D5D8;"></textarea></div></div></div><p class="btn"><a href="javascript:void(0);" class="W_btn_b" action-type="applySettings"><span>确定</span></a><a href="javascript:void(0);" class="W_btn_a" action-type="closeWindow"><span>取消</span></a></p></div></div></td></tr></tbody></table></div>')
                             .cssText('width: 600px; margin-left: -150px; z-index: 10001; position: absolute; display: none;')
                             .hide();
         root.append(keywordBack).append(keywordBlock);
@@ -341,7 +457,14 @@ var wbp = {
         keywordBlock.delegate('click', function(e) {
             that.eventHandlers[e.actionType].call(this, e);
         });
+        var settings = Filter.getSettings();
+        var modules = settings.hideBlock;
+        //初始化内容
         $('#wbpSettingsTitle').html('“眼不见心不烦”(v' + $version + ')设置');
+        //第三个栏目内容是版面模块，从0开始计算栏目数
+        $.each(wbp.contents.eq(3).find('[type=checkbox]'), function() {
+            this.checked = modules[this.id.replace('wbpBlock', '')];
+        })
     },
 
     showSettingsWindow : function(e) {
@@ -358,7 +481,35 @@ var wbp = {
 
     eventHandlers : {
         'addKeyWord' : function(e) {
-            //TODO 添加关键词
+            var id = e.data.id;
+            return false;
+            /*var keywords = list instanceof Array ? list : list.split(' '),
+                    i, len, malformed = [];
+            for (i = 0, len = keywords.length; i < len; ++i) {
+                var currentKeywords = ' ' + getKeywords(id).join(' ') + ' ', keyword = keywords[i];
+                if (keyword && currentKeywords.indexOf(' ' + keyword + ' ') === -1) {
+                    var keywordLink = document.createElement('a');
+                    if (keyword.length > 2 && keyword.charAt(0) === '/' && keyword.charAt(keyword.length - 1) === '/') {
+                        try {
+                            // 尝试创建正则表达式，检验正则表达式的有效性
+                            // 调用test()是必须的，否则浏览器可能跳过该语句
+                            RegExp(keyword.substring(1, keyword.length - 1)).test('');
+                        } catch (e) {
+                            malformed.push(keyword);
+                            continue;
+                        }
+                        keywordLink.className = 'regex';
+                    }
+                    keywordLink.title = '删除关键词';
+                    keywordLink.href = 'javascript:void(0)';
+                    keywordLink.innerHTML = keyword;
+                    _(id).appendChild(keywordLink);
+                }
+            }
+            if (malformed.length > 0) {
+                alert('下列正则表达式无效：\n' + malformed.join('\n'));
+            }
+            return malformed.join(' ');*/
         },
 
         'deleteKeyWord' : function(e) {
@@ -371,6 +522,10 @@ var wbp = {
 
         'changeTipBackgroundColor' : function(e) {
             //TODO 更改屏蔽提示颜色
+        },
+
+        'applySettings' : function(e) {  //应用设置
+            wbp.eventHandlers.closeWindow();
         },
 
         'importSettings' : function(e) {
@@ -388,7 +543,7 @@ var wbp = {
         },
 
         'changeTab' : function(e) {
-            var index = e.actionData.index;
+            var index = e.data.index;
             var oldIndex = wbp.previousIndex;
             if(index != oldIndex) {
                 wbp.tabs.eq(oldIndex).removeClassName('current').back().eq(index).addClassName('current');
@@ -415,7 +570,7 @@ var wbp = {
                     if (!text.match(/@version\s+(.*)/)) {return; }
                     var ver = RegExp.$1;
                     if (!text.match(/@revision\s+(\d+)/) || RegExp.$1 <= $revision) {
-                        wbp.stk.ui.alert('脚本已经是最新版。');
+                        $.alert('脚本已经是最新版。');
                         return;
                     }
                     var features = '';
@@ -423,14 +578,14 @@ var wbp = {
                         features = '<br/>- ' + RegExp.$1.split('；').join('<br/>- ') + '</br>';
                     }
                     // 显示更新提示
-                    wbp.stk.ui.confirm('“眼不见心不烦”新版本v' + ver + '可用。' + features + '如果您希望更新，请点击“确认”打开脚本页面。', {
+                    $.confirm('“眼不见心不烦”新版本v' + ver + '可用。' + features + '如果您希望更新，请点击“确认”打开脚本页面。', {
                         'OK' : function() {
                             window.open('http://userscripts.org/scripts/show/114087');
                         }
                     })
                 },
                 onerror : function() {
-                    wbp.stk.ui.alert('检查更新出错，请刷新后重新尝试。<br/>若该问题持续存在，请联系作者！');
+                    $.alert('检查更新出错，请刷新后重新尝试。<br/>若该问题持续存在，请联系作者！');
                 }
             })
         }
