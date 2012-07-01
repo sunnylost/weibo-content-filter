@@ -1,15 +1,15 @@
 // ==UserScript==
-// @name            眼不见心不烦（新浪微博）
-// @namespace       http://weibo.com/salviati
-// @license         MIT License
-// @description     在新浪微博（weibo.com）中隐藏包含指定关键词的微博。
-// @features        增加对个人/机构认证（黄/蓝V）及微博达人标识的屏蔽
-// @version         0.85
-// @revision        45
-// @author          @富平侯(/salviati)
-// @thanksto        @牛肉火箭(/sunnylost)；@JoyerHuang_悦(/collger)
-// @include         http://weibo.com/*
-// @include         http://www.weibo.com/*
+// @name			眼不见心不烦（新浪微博）
+// @namespace		http://weibo.com/salviati
+// @license			MIT License
+// @description		在新浪微博（weibo.com）中隐藏包含指定关键词的微博。
+// @features		增加对个人/机构认证（黄/蓝V）及微博达人标识的屏蔽
+// @version			0.85
+// @revision		45
+// @author			@富平侯(/salviati)
+// @thanksto		@牛肉火箭(/sunnylost)；@JoyerHuang_悦(/collger)
+// @include			http://weibo.com/*
+// @include			http://www.weibo.com/*
 // ==/UserScript==
 
 //Firefox安装GreaseMonkey扩展
@@ -30,9 +30,15 @@
  *
  * TODO： 对象设计合理化
  *        跨浏览器
+ *
+ * 关于优化的设想：
+ *  1，关键字转正则并合并(未经过测试，只是想想)
+ *  2，根据关键字使用频率调整位置
+ *
  */
-
+try {
 var doc = document;
+var head = doc.head;
 var body = doc.body;
 var docElement = doc.documentElement;
 
@@ -131,7 +137,7 @@ var $ = (function() {
     $.prototype = {
         init : function(selector, context) {
             context = context || body;
-            selector = typeof selector == 'string' ? doc.querySelectorAll(selector, context) : [selector];
+            selector = typeof selector == 'string' ? doc.querySelectorAll(selector, context) : [selector == null ? body : selector];
             this.context = context;
             this.previouseObj = this;
             push.apply(this, selector);
@@ -245,7 +251,9 @@ var $ = (function() {
             return $(this[0].parentNode);
         },
 
-        next : function() {
+        next : doc.head.nextElementSibling ? function() {
+            return $(this[0].nextElementSibling);
+        } : function() {
             var next = this[0];
             do {
                 next = next.nextSibling;
@@ -260,6 +268,24 @@ var $ = (function() {
             })
             return this;
         },
+
+        insert : function(el) { //相当于el.appendChild
+            el && (el.nodeType ? el : el[0]).appendChild(this[0]);
+            return this;
+        },
+
+        insertAfter : function(el) {
+            el && (el.nodeType ? el : el[0]).parentNode.insertBefore(this[0], $(el).next()[0]);
+            return this;
+        },
+
+        insertBefore : function(el) {
+            if(!el) return this;
+            el = el.length ? el[0] : el;
+            el.parentNode.insertBefore(this[0], el);
+            return this;
+        },
+
         //移除节点
         remove : function() {
             $.each(this, function() {
@@ -479,9 +505,20 @@ wbp.Module = {
     operate : function() {
         var allModules = wbp.Config.get('hideBlock');
         var modules = this.modules;
+        var styles = [];
+        var hideStr = '{display:none; visibility: hidden;}';
         $.each(allModules, function(name, value) {
-            modules[name] && $(modules[name])[value ? 'hide' : 'show']();
+            value && styles.push(modules[name] + hideStr);
         })
+
+        var styleObj = $('#wbpBlockStyles');
+        if(!styleObj.length) {
+            styleObj = $.create('style').prop({
+                            type : 'text/css',
+                            id : 'wbpBlockStyles'
+                        }).insert(head);
+        }
+        styleObj.html(styles.join(''));
     }
 };
 
@@ -656,7 +693,7 @@ wbp.Window = {
             }
         },
 
-        //关闭窗口，取消按钮两个都会执行该函数。是否需要重新设置参数对象？
+        //关闭窗口，取消按钮两个都会执行该函数。
         'closeWindow' : function() {
             this.hide();
         },
@@ -718,3 +755,6 @@ var Filter = (function(){
 }());
 
 wbp.init();
+} catch(e) {
+    console.log(e);
+}
