@@ -37,6 +37,7 @@
  *
  */
 try {
+    var beginTime = new Date();
 var doc = document;
 var head = doc.head;
 var body = doc.body;
@@ -97,22 +98,53 @@ var $ = (function() {
         }
     }
 
-    $.addStyle = function(css) {
-        GM_addStyle(css);
-        return this;
-    };
+    $.addStyle = function() {
+        if(GM_addStyle) {
+            return function(css) {
+                GM_addStyle(css)
+                return this
+            }
+        } else {
+            return function(css) {
+                $.create('style').prop({
+                    'type' : 'text/style'
+                }).insert(head).html(css)
+                return this
+            }
+        }
+    }();
 
     //简单模板，类似#T{abc}
     $.template = function(str, obj) {
         str = str.replace(new RegExp('#T{([^}]*?)}', 'g'), function(m, m1) {
-            return obj[m1];
+            return obj[m1]
         })
-        return str;
+        return str
     };
 
-    //AJAX
+    //AJAX  不做过多考虑，只做基于GET的请求
     $.ajax = function(config) {
-        GM_xmlhttpRequest(config);
+        if(this.GM_xmlhttpRequest) {
+            $.ajax = function(config) {
+                GM_xmlhttpRequest(config)
+                return this
+            }
+        } else {
+            $.ajax = function(config) {
+                var xhr = new XMLHttpRequest()
+                xhr.onreadystatechange = function() {
+                    if(xhr.readyState == 4) {
+                        if((xhr.status >= 200 && xhr.status < 300) || xhr == 304) {
+                            config.onload();
+                        }
+                    }
+                }
+                xhr.open('get', config.url, true)
+                xhr.send(null)
+                return this
+            }
+        }
+        $.ajax(config)
         return this;
     };
 
@@ -367,11 +399,16 @@ var $ = (function() {
 
     // TODO
     (function() {
-        if (!window.chrome) {
+        var global = window || unsafeWindow;
+        if (unsafeWindow) {
             // 非Chrome浏览器，优先使用unsafeWindow获取全局变量
             // 由于varname中可能包括'.'，因此使用eval()获取变量值
-            $.global = function (varname) {
-                return eval('unsafeWindow.' + varname);
+            $.global = function (name) {
+                return eval('unsafeWindow.' + name);
+            };
+        } else if(window) {
+            $.global = function (name) {
+                return eval('window.' + name);
             };
         } else {
             // Chrome原生不支持unsafeWindow，脚本运行在沙箱中，因此不能访问全局变量。
@@ -422,22 +459,37 @@ var $ = (function() {
     return $;
 }())
 
-var config = $.global('$CONFIG');
-var $uid = config['uid'];
+var config = null;
+var $uid = '';
+var attempTimes = 5;
 
 var wbp = {
-    scope : config['pageid'] == 'content_home' ? 1 : config['pageid'] == 'content_hisWeibo' ? 2 : 0,
+    scope : function() {
+        return this.scope || (this.scope = config['pageid'] == 'content_home' ? 1 : config['pageid'] == 'content_hisWeibo' ? 2 : 0);
+    },
 
     init : function() {
-        if(!this.scope) return;
-        this.Window.showSettingsBtn(); //显示按钮
-        this.Module.operate();  //屏蔽模块
+        config = $.global('$CONFIG');
+        if(!config && attempTimes) {
+            attempTimes -= 1;
+            setTimeout(wbp.init, 30);
+        } else {
+            $uid = config['uid'];
+            if(!this.scope()) return;
+            this.Config.init();
+            this.Window.showSettingsBtn(); //显示按钮
+            this.Module.operate();  //屏蔽模块
+            console.log('启动时间=' + (new Date - beginTime) + 'ms');
+        }
     }
 };
 
 wbp.Config = function() {
-    var str = $.get($uid, '');
-    var config = !str ? {
+    var config = null;
+
+    var init = function() {
+        var str = $.get($uid, '');
+        config = !str ? {
             keywordPaused : false,
             whiteKeywords : '',
             blackKeywords : '',
@@ -447,6 +499,7 @@ wbp.Config = function() {
             tipTextColor : '#FF8080',
             hideBlock : {}
         } : JSON.parse(str);
+    };
 
     var getConfig = function(name) {
         return name ? config[name] : config;
@@ -473,6 +526,7 @@ wbp.Config = function() {
     };
 
    return {
+       init : init,
        get : getConfig,
        getString : getConfigInStringFormat,
        save : saveConfig
