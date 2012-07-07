@@ -180,6 +180,8 @@ try {
 
         //instance method
         $.prototype = {
+            constructor : $,
+
             init : function(selector, context) {
                 context = context || body;
                 selector = typeof selector == 'string' ? doc.querySelectorAll(selector, context) : [selector == null ? body : selector];
@@ -293,30 +295,28 @@ try {
             },
 
             parent : function() {
-                return $(this[0].parentNode);
+                var parent = $(this[0].parentNode);
+                parent.previousObj = this;
+                return parent;
             },
 
             next : doc.head.nextElementSibling ? function() {
-                return $(this[0].nextElementSibling);
+                var next = $(this[0].nextElementSibling);
+                next.previousObj = this;
+                return next;
             } : function() {
                 var next = this[0];
                 do {
                     next = next.nextSibling;
                 } while(next && next.nodeType != 1)
-                return $(next);
+                next = $(next);
+                next.previousObj = this;
+                return next;
             },
 
             append : function(child) {
-                child = child.length ? child[0] : child; //只操作第一个元素
-                $.each(this, function() {
-                    try {
-                        //console.log(this)
-                        //console.log(child)
-                    } catch(e) {
-                        console.log(e)
-                    }
-                    this.appendChild(child);
-                })
+                child = child.length && child.constructor == $ ? child[0] : child; //只操作第一个元素
+                this[0].appendChild(child);
                 return this;
             },
 
@@ -484,7 +484,7 @@ try {
 
     var wbp = {
         scope : function() {
-            return this.scope || (this.scope = config['pageid'] == 'content_home' ? 1 : config['pageid'] == 'content_hisWeibo' ? 2 : -1);
+            return this.scopeVal || (this.scopeVal = config['pageid'] == 'content_home' ? 1 : config['pageid'] == 'content_hisWeibo' ? 2 : -1);
         },
 
         init : function() {
@@ -497,11 +497,11 @@ try {
                 if(this.scope() < 0) return;
                 this.Config.init();
                 this.Window.showSettingsBtn(); //显示按钮
+                console.log($.find('.feed_lists'))
                 if($.find('.feed_lists').length > 0) {
-                    console.log('waaaaa')
                     wbp.Filter.filterFeeds();
                 }
-                $(doc).on('DOMNodeInserted', this.handleInsert.bind);
+                $(doc).on('DOMNodeInserted', this.handleInsert);
                 this.Module.operate();  //屏蔽模块
                 console.log('启动时间=' + (new Date - beginTime) + 'ms');
             }
@@ -516,7 +516,6 @@ try {
             } else if(tagName === 'DIV' && classList.contains('feed_lists')) {
                 return wbp.Filter.filterFeeds();
             }
-            //console.log(e.target);
         }
     };
 
@@ -914,9 +913,10 @@ try {
 
     wbp.Feed = function(node) {
         this.el = node;
-        this.contentEl = $.find('[node-type=feed_list_content]', node)[0];
-        this.forwardEl = $.find('.comment', node)[0];
-        this.forwardContentEl = $.find('[node-type=feed_list_forwardContent]', this.forwardEl)[0];
+        //this.contentEl = $.find('[node-type=feed_list_content]', node)[0];
+        //this.forwardEl = $.find('.comment', node)[0];
+        //console.log(this.forwardEl);
+        //this.forwardContentEl = $.find('[node-type=feed_list_forwardContent]', this.forwardEl)[0];
     };
 
     wbp.Feed.prototype = {
@@ -926,8 +926,8 @@ try {
             return this.el.getElementsByTagName('dt')[0].getElementsByTagName('a')[0];
         },
 
-        getNickname : function() { //发布该条微博的昵称
-            return this.nickname || (this.nickname = $.find('a[nickname]', this.contentEl)[0].textContent);
+        getNicknameEl : function() { //发布该条微博的昵称
+            return this.nickname || (this.nickname = $.find('a[nick-name]', this.el)[0]);
         },
 
         getContent : function() { //本条微博内容
@@ -955,7 +955,6 @@ try {
         },
 
         changeToTip : function(keyword) {
-            console.log('wa~屏蔽啦~')
             var tipBackColor = wbp.Config.get('tipBackColor') || '#FFD0D0';
             var tipTextColor = wbp.Config.get('tipTextColor') || '#FF8080';
 
@@ -965,27 +964,25 @@ try {
             }).cssText('background-color: ' + tipBackColor + '; border-color: ' + tipTextColor + '; color: ' + tipTextColor + '; margin-bottom: 0px; height: auto;');
             var keywordLink = $.create('a').prop('href', 'javascript:void(0)')
                                 .html(keyword)
-                                .on('click', wbp.Window.show.bind(wbp.Window)); //打开配置窗口
-            var face = this.getFace().cloneNode(true);
+                                .on('click', this.openWindow); //打开配置窗口
             if (wbp.scope() === 1) {
-                console.log(showFeed)
                 showFeed.append($.createText('本条来自'))
-                        .append(face)
+                        .append(this.getNicknameEl().cloneNode(true))
                         .append($.createText('的微博因包含关键词“'))
             } else if (wbp.scope() === 2) {
                 showFeed.append($.createText('本条微博因包含关键词“'));
             }
-            showFeed.append(keywordLink)
-            try {
-            showFeed.append($.createText('”而被隐藏，点击显示'))
-            } catch(e) {
-                console.log(e.message)
-            }
+            showFeed.append(keywordLink).append($.createText('”而被隐藏，点击显示'))
             showFeed.on('click', this.clickLink.bind(showFeed))
             showFeed.on('mouseover', this.mouseoverLink.bind(showFeed))
-            showFeed.on('mouseout', this.mouseoutLink.bind(showFeed, [tipBackColor, tipTextColor]));
+            showFeed.on('mouseout', this.mouseoutLink.bind(showFeed, tipBackColor, tipTextColor));
             this.el.insertBefore(showFeed[0], this.el.firstChild);
             return true;
+        },
+
+        openWindow : function(e) {
+            wbp.Window.show(e);
+            e.stopPropagation()
         },
 
         clickLink : function() {
@@ -1022,13 +1019,22 @@ try {
 
         var filterFeed = function(feed, config) {
             var config = config || wbp.Config;
-            var content = feed.getContent() + feed.getForwardContent();
+            var content = feed.el.textContent;
+            //var content = feed.getContent() + feed.getForwardContent();
 
             if(test(config.get('whiteKeywords'), content)) return true;
 
             if(test(config.get('blackKeywords'), content)) return feed.hide();
 
             if(test(config.get('grayKeywords'), content)) {
+                $(feed.el.children[0]).css({
+                    'opacity' : 0.5,
+                    'display' : 'none'
+                })
+                $(feed.el.children[1]).css({
+                    'opacity' : 0.5,
+                    'display' : 'none'
+                })
                 return feed.changeToTip(currentKeyword);
             } else {
                 $(feed.el.children[0]).css({
