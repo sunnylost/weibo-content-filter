@@ -50,9 +50,8 @@ try {
         var guid = 0;
         var scriptPrefix = 'wbpscript';
         var ArrayProto = Array.prototype;
-        var slice = ArrayProto.slice;
         var push = ArrayProto.push;
-        var each = ArrayProto.forEach;
+        var concat = ArrayProto.concat;
         var stk; //weibo框架
         var root;
         var rtrim = /^\s+|\s+$/g;
@@ -178,13 +177,46 @@ try {
             }
         };
 
+        $.merge = function(first, second) {
+            var i = first.length,
+                j = 0;
+
+            if ( typeof second.length === "number" ) {
+                for ( var l = second.length; j < l; j++ ) {
+                    first[ i++ ] = second[ j ];
+                }
+
+            } else {
+                while ( second[j] !== undefined ) {
+                    first[ i++ ] = second[ j++ ];
+                }
+            }
+            first.length = i;
+            return first;
+        };
+
         //instance method
         $.prototype = {
             constructor : $,
 
             init : function(selector, context) {
                 context = context || body;
-                selector = typeof selector == 'string' ? doc.querySelectorAll(selector, context) : [selector == null ? body : selector];
+                var type = typeof selector;
+                var arr = [];
+                if(type == 'object' && selector.length) {
+                    $.each(selector, function(n, v) {
+                        var o = (typeof v == 'string' ? doc.querySelectorAll(selector, context) : [v])
+                        arr = concat.call(o, arr);
+                    })
+                    this.context = context;
+                    this.previouseObj = this;
+                    $.merge(this, arr);
+                    return this;
+                } else if(type == 'string') {
+                    selector = doc.querySelectorAll(selector, context);
+                } else {
+                    selector = [selector == null ? body : selector]
+                }
                 this.context = context;
                 this.previouseObj = this;
                 push.apply(this, selector);
@@ -497,7 +529,6 @@ try {
                 if(this.scope() < 0) return;
                 this.Config.init();
                 this.Window.showSettingsBtn(); //显示按钮
-                console.log($.find('.feed_lists'))
                 if($.find('.feed_lists').length > 0) {
                     wbp.Filter.filterFeeds();
                 }
@@ -512,7 +543,7 @@ try {
             var tagName = target.tagName;
             var classList = target.classList;
             if(tagName == 'DL' && classList.contains('feed_list')) {
-                return wbp.Filter.filterFeed(target);
+                return wbp.Filter.filterFeed(new wbp.Feed(target));
             } else if(tagName === 'DIV' && classList.contains('feed_lists')) {
                 return wbp.Filter.filterFeeds();
             }
@@ -742,7 +773,7 @@ try {
                 'width' : window.innerWidth
             })).show();
             // Chrome与Firefox的scrollLeft, scrollTop储存于不同位置
-            var pos = this.settingsBtn.pos();
+            var pos = e ? {left:e.clientX, top:e.clientY} : this.settingsBtn.pos();
             $('#wbpSettings').css({
                 'left' : (Math.max(0, body.scrollLeft, docElement.scrollLeft) + pos.left) + 'px',
                 'top' : (Math.max(0, body.scrollTop, docElement.scrollTop) + pos.top - 50) + 'px',
@@ -951,8 +982,24 @@ try {
         },
 
         hide : function() {
-            this.el.style.display = 'none';
+            var el = this.el;
+            el.style.display = 'none';
+            $([el.children[0], el.children[1]]).css({
+                'opacity' : 1,
+                'display' : ''
+            })
+            return true;
         },
+
+        show : function() {
+           var el = this.el;
+           el.style.display = '';
+           $([el.children[0], el.children[1]]).css({
+               'opacity' : 1,
+               'display' : ''
+           })
+           return true;
+       },
 
         changeToTip : function(keyword) {
             var tipBackColor = wbp.Config.get('tipBackColor') || '#FFD0D0';
@@ -1021,30 +1068,32 @@ try {
             var config = config || wbp.Config;
             var content = feed.el.textContent;
             //var content = feed.getContent() + feed.getForwardContent();
+            if (feed.el.children[0].tagName === 'A') {
+                $(feed.el).children(0).remove();
+            } // 已被屏蔽过
 
-            if(test(config.get('whiteKeywords'), content)) return true;
+            if(test(config.get('whiteKeywords'), content)) {
+                feed.show();
+                return true;
+            }
 
-            if(test(config.get('blackKeywords'), content)) return feed.hide();
+            if(test(config.get('blackKeywords'), content)) {
+                return feed.hide();
+            }
 
             if(test(config.get('grayKeywords'), content)) {
-                $(feed.el.children[0]).css({
-                    'opacity' : 0.5,
-                    'display' : 'none'
-                })
-                $(feed.el.children[1]).css({
-                    'opacity' : 0.5,
-                    'display' : 'none'
-                })
-                return feed.changeToTip(currentKeyword);
+                if(!feed.el.isCheck) {
+                    $([feed.el.children[0], feed.el.children[1]]).css({
+                        'opacity' : 0.5,
+                        'display' : 'none'
+                    })
+                    feed.el.isCheck = true;
+                    return feed.changeToTip(currentKeyword);
+                }
+                return true;
             } else {
-                $(feed.el.children[0]).css({
-                    'opacity' : 1,
-                    'display' : ''
-                })
-                $(feed.el.children[1]).css({
-                    'opacity' : 1,
-                    'display' : ''
-                })
+                feed.show();
+                feed.el.isCheck = false;
             }
         }
 
