@@ -1,0 +1,114 @@
+#wbpSettings p { 
+	line-height: 150%; 
+} 
+
+#wbpTabHeaders a { 
+	display: block; 
+	padding: 6px 0; 
+	text-align: center; 
+	text-decoration: none;
+}
+  
+#wbpTabHeaders a:hover {
+    background-color: #C6E8F4;
+} 
+
+#wbpTabHeaders a.current { 
+	background-color: #79C5E9; 
+	color: white; 
+	cursor: default; 
+} 
+
+#wbpSettings .wbpInput { 
+	border: 1px solid #D2D5D8; padding: 0 2px; 
+} 
+
+#wbpSettings .wbpInput input { 
+	width: 100%; 
+	height: 22px; 
+	border: 0; 
+	padding: 0; 
+	margin: 0; 
+	display: block; 
+} 
+
+#wbpSettings .detail > div { 
+	margin-top: 15px;
+} 
+
+#wbpTabModules input { 
+	vertical-align: middle;
+	 margin-right: 5px; 
+} 
+
+#wbpSettings .wbpKeywordBlock { 
+	margin-top: 10px; 
+	border: 1px solid #D2D5D8; 
+	padding: 8px 8px 0; 
+} 
+
+#wbpSettings .wbpKeywordBlock em { 
+	font-weight: bold; 
+	margin-right: 15px; 
+} 
+
+#wbpSettings .wbpKeywordList { 
+	margin-top: 8px; 
+	overflow: hidden; 
+}
+
+#wbpSettings .wbpKeywordList a { 
+	margin: 0 5px 8px 0; 
+	padding: 0 4px; 
+	border: 1px solid; 
+	float: left; 
+	height: 18px; 
+	line-height: 18px; 
+	white-space: nowrap; 
+} 
+
+#wbpSettings .wbpKeywordList a:hover { 
+	text-decoration: none; 
+} 
+
+#wbpWhiteKeywordList a { 
+	border-color: #008000; 
+	color: #008000; 
+} 
+
+#wbpWhiteKeywordList a.regex { 
+	background-color: #80FF80; 
+} 
+
+#wbpWhiteKeywordList a:hover { 
+	border-color: #008000; 
+	background-color: #D0FFD0; 
+} 
+
+#wbpBlackKeywordList a, #wbpURLKeywordList a { 
+	border-color: #D00000; 
+	color: #D00000; 
+} 
+
+#wbpBlackKeywordList a.regex, #wbpURLKeywordList a.regex { 
+	background-color: #FFB0B0; 
+} 
+
+#wbpBlackKeywordList a:hover, #wbpURLKeywordList a:hover { 
+	border-color: #FF0000; 
+	background-color: #FFD0D0; 
+} 
+
+#wbpGrayKeywordList a { 
+	border-color: #808000; 
+	color: #808000; 
+} 
+
+#wbpGrayKeywordList a.regex { 
+	background-color: #FFFF00; 
+} 
+
+#wbpGrayKeywordList a:hover { 
+	border-color: #808000; 
+	background-color: #FFFFB0; 
+}
